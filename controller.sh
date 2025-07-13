@@ -248,6 +248,49 @@ gerenciar_nginx_proxy_manager() {
   done
 }
 
+# Função para gerenciar o stack de monitoramento (Grafana, Prometheus, Loki, etc.)
+gerenciar_monitoramento() {
+  if ! verificar_env "services/monitoramento"; then
+    return
+  fi
+  while true; do
+    color_text blue "Gerenciamento do Stack de Monitoramento"
+    echo "Escolha uma opção:"
+    echo -e "  1) Subir o stack"
+    echo -e "  2) Derrubar o stack"
+    echo -e "  3) Reiniciar o stack"
+    echo -e "  0) Voltar ao menu principal"
+    read -p "  > " opcao
+    opcao=$(sanitize_input "$opcao")
+
+    case $opcao in
+      1)
+        echo "Subindo o stack de monitoramento..."
+        (cd services/monitoramento && docker compose --env-file .env -f grafana.yml -p monitoramento up -d)
+        echo ""
+        ;;
+      2)
+        echo "Derrubando o stack de monitoramento..."
+        (cd services/monitoramento && docker compose --env-file .env -f grafana.yml -p monitoramento down)
+        echo ""
+        ;;
+      3)
+        echo "Reiniciando o stack de monitoramento..."
+        (cd services/monitoramento && docker compose --env-file .env -f grafana.yml -p monitoramento restart)
+        echo ""
+        ;;
+      0)
+        color_text green "Voltando ao menu principal..."
+        return
+        ;;
+      *)
+        color_text red "Opção inválida. Tente novamente."
+        sleep 2
+        ;;
+    esac
+  done
+}
+
 # Função para sanitizar entrada do usuário
 sanitize_input() {
   echo "$1" | sed 's/[^a-zA-Z0-9_-]//g'
@@ -265,7 +308,8 @@ main() {
     echo -e "  1) Pi-hole"
     echo -e "  2) Portainer"
     echo -e "  3) Nginx Proxy Manager"
-    echo -e "  4) Comandos Docker"
+    echo -e "  4) Stack de Monitoramento"
+    echo -e "  5) Comandos Docker"
     echo -e "  0) Sair"
     read -p "  > " stack_opcao
     stack_opcao=$(sanitize_input "$stack_opcao")
@@ -281,6 +325,9 @@ main() {
         gerenciar_nginx_proxy_manager
         ;;
       4)
+        gerenciar_monitoramento
+        ;;
+      5)
         comando_docker
         ;;
       0)

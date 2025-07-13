@@ -1,0 +1,18 @@
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "portainer_data:/data"
+    networks:
+      - proxy-manager_default
+
+volumes:
+  portainer_data:
+
+networks:
+  proxy-manager_default:
+    external: true

@@ -14,3 +14,9 @@ Thumbs.db
 # Ignorar configurações de IDE
 .vscode/
 .idea/
+
+# Ignora variaveis de ambiente
+.env
+
+# ignora certificados gerados
+certificates/

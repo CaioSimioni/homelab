@@ -1,0 +1,29 @@
+
+services:
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    hostname: pihole
+    networks:
+      dns_net:
+        ipv4_address: ${PIHOLE_IP}
+    environment:
+      TZ: "${TZ}"
+    volumes:
+      - pihole_data:/etc/pihole
+      - dnsmasq_data:/etc/dnsmasq.d
+
+volumes:
+  pihole_data:
+  dnsmasq_data:
+
+networks:
+  dns_net:
+    driver: ipvlan
+    driver_opts:
+      parent: ${INTERFACE}
+    ipam:
+      config:
+        - subnet: ${SUBNET}
+          gateway: ${GATEWAY}

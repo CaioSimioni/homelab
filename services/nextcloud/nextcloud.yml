@@ -1,0 +1,47 @@
+version: '3.8'
+
+networks:
+  proxy:
+    external:
+      name: proxy-manager_default
+  internal:
+    driver: bridge
+
+services:
+  # Serviço Nextcloud para gerenciamento de arquivos
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+    volumes:
+      - nextcloud_data:/var/www/html
+      - /srv/nextcloud:/mnt/arquivos
+    networks:
+      - proxy
+      - internal
+    depends_on:
+      - nextcloud_db
+
+  # Banco de dados MariaDB para o Nextcloud
+  nextcloud_db:
+    image: mariadb:latest
+    container_name: nextcloud_db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - nextcloud_db_data:/var/lib/mysql
+    networks:
+      - internal
+
+volumes:
+  nextcloud_data:
+  nextcloud_db_data:

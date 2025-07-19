@@ -1,0 +1,178 @@
+# ------------------------------------------------------------------------
+# monitoramento.yml
+# Autor Caio Simioni
+#
+# Agradecimento a Uziel Jr. https://github.com/uzieljr/lab-monitoramento-prometheus
+# https://youtu.be/MSHh9Zvbr40?si=XaGMixlTDRBm5IRb
+#
+# Stack para monitoramento e visualização de métricas e logs
+#
+# Uso:
+#   docker compose -f monitoramento.yml -p monitoramento up -d
+#   docker compose -f monitoramento.yml -p monitoramento down
+#
+# Containers:
+#   - Grafana: Visualização de métricas e logs
+#   - Prometheus: Coleta e armazenamento de métricas
+#   - Loki: Coleta e armazenamento de logs
+
+# Containers da stack
+services:
+
+  # -= GRAFANA =-
+  # Grafana será onde as métricas e logs serão visualizados
+  # 
+  # Acesse o Grafana em http://localhost:3000
+  # Credenciais padrão: admin/admin
+  #
+  # - Healthcheck usa a API do grafana para verificar se o serviço está ativo
+  # - Logging usa o driver json-file com rotação de logs
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin        # Usuário padrão do admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin    # Senha padrão do admin
+      - GF_USERS_ALLOW_SIGN_UP=false        # Desativa o registro de novos usuários
+      - GF_SECURITY_DISABLE_GRAVATAR=true   # Desativa o Gravatar para evitar requisições externas
+      - GF_LOG_FILTERS=rendering:debug
+      - GF_RENDERING_CALLBACK_URL=http://renderer:3000/
+      - GF_RENDERING_SERVER_URL=http://renderer:3001/render
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-image-renderer
+    volumes:
+      - grafana_data:/var/lib/grafana                   # Volume para persistência de dados
+      - /etc/localtime:/etc/localtime:ro                # Sincroniza o horário do host
+      - grafana_provisioning:/etc/grafana/provisioning  # Provisionamento de fontes de dados e dashboards
+      - grafana_dashboards:/var/lib/grafana/dashboards  # Volume para dashboards
+    ports:
+      - "3000:3000"
+    networks:
+      - internal
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # -= Render Grafana =-
+  # Render é um plugin do Grafana que permite renderizar gráficos como imagens
+  renderer:
+    image: grafana/grafana-image-renderer:3.5.0
+    container_name: renderer
+    restart: unless-stopped
+    ports:
+      - "3001:8081"
+    networks:
+      - internal
+    depends_on:
+      - grafana
+
+  # -= PROMETHEUS =-
+  # Prometheus será responsável por coletar e armazenar métricas do sistema e dos containers
+  #
+  # - Configuração principal em ./prometheus/prometheus.yml
+  # - Porta 9090: interface web do Prometheus
+  # - Volume prometheus_data: persistência dos dados de séries temporais
+  # - Healthcheck não é necessário pois a interface web já indica o status
+  # - Logging com rotação de logs
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - prometheus_data:/prometheus           # Volume para dados do Prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # Configuração
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # -= LOKI =-
+  # Loki é responsável por coletar, indexar e armazenar logs dos containers e do sistema
+  #
+  # - Configuração principal em ./loki/loki-config.yml
+  # - Porta 3100: API do Loki para consulta e ingestão de logs
+  # - Volume loki_data: persistência dos dados de logs
+  # - Logging com rotação de logs
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    restart: unless-stopped
+    volumes:
+      - loki_data:/loki                      # Volume para dados do Loki
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro  # Configuração
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # -= NODE EXPORTER =-
+  # Node Exporter coleta métricas do host (CPU, RAM, disco, rede, etc) para o Prometheus
+  #
+  # - Porta 9100: endpoint do Node Exporter
+  # - Usa volumes para acessar informações do host
+  # - pid: host permite acesso a informações detalhadas do sistema
+  # - Logging com rotação de logs
+  nodeexporter:
+    image: prom/node-exporter:v1.8.0
+    container_name: nodeexporter
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro                  # Acesso ao /proc do host
+      - /sys:/host/sys:ro                    # Acesso ao /sys do host
+      - /:/rootfs:ro                         # Acesso ao filesystem raiz do host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Redes da stack
+networks:
+  # Rede fechada para comunicação entre os containers
+  internal:
+    driver: bridge
+  # Rede que é exposta, caso use um proxy reverso
+  # será necessário especificar qual a rede
+  proxy:
+    driver: bridge
+
+# Volumes da stack
+volumes:
+  # /var/lib/grafana é onde o Grafana armazena seus dados
+  grafana_data:
+  grafana_provisioning:
+  grafana_dashboards:
+  # /prometheus é onde o Prometheus armazena seus dados
+  prometheus_data:
+  # /loki é onde o Loki armazena seus dados
+  loki_data:

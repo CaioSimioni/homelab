@@ -1,0 +1,30 @@
+# ------------------------------------------------------------------------
+# ./prometheus/prometheus.yml
+# Autor Caio Simioni
+#
+# Arquivo de configuração do Prometheus
+#
+# Uso:
+#   Aponte o arquivo no volume do container Prometheus no docker-compose.yml
+#
+#   volumes:
+#     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+#
+# Descrição:
+# Configura o Prometheus para coletar métricas do próprio serviço e do Node Exporter a cada 15 segundos.
+# Os targets definidos são os endpoints locais de monitoramento.
+
+# Configurações globais do Prometheus, válidas para todos os jobs.
+global:
+  scrape_interval: 15s           # Intervalo padrão para coleta de métricas
+  evaluation_interval: 15s       # Intervalo para avaliação de regras
+
+# Configurações de scrape para os targets
+scrape_configs:
+  - job_name: 'prometheus'           # Job para monitorar o próprio Prometheus
+    static_configs:
+      - targets: ['prometheus:9090']  # Endpoint do Prometheus
+
+  - job_name: 'nodeexporter'         # Job para monitorar o Node Exporter (métricas do host)
+    static_configs:
+      - targets: ['nodeexporter:9100']  # Endpoint do Node Exporter
